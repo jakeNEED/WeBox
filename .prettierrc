@@ -1,0 +1,29 @@
+{
+	"semi": true,
+	"bracketSpacing": true,
+	"jsxBracketSameLine": true,
+	"tabWidth": 4,
+	"useTabs": false,
+	"singleQuote": true,
+	"printWidth": 1000,
+	"tslintIntegration":true,
+	"eslintIntegration": false,
+	"stylelintIntegration": false,
+	"disableLanguages": ["vue"],
+	"overrides": [
+		{
+			"files": ["*.json", ".eslintrc", ".tslintrc", ".prettierrc", ".tern-project"],
+			"options": {
+				"parser": "json"
+			}
+		},
+		{
+			"files": ["*.ts", "*.tsx"],
+			"options": {
+				"parser": "typescript",
+				"quoteProps":"as-needed"
+				
+			}
+		}
+	]
+}
