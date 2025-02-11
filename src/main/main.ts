@@ -28,7 +28,6 @@ function createWindow() {
     });
     // mainWindow.webContents.openDevTools();
 
-
     if (process.env.NODE_ENV === 'development') {
         mainWindow.loadURL('http://localhost:4000');
     } else {
@@ -48,6 +47,24 @@ function createWindow() {
     });
 }
 
+function getAllImagesRecursively(dirPath: string) {
+    let results: any = [];
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name);
+        if (entry.isDirectory()) {
+            // 如果是文件夹，继续递归
+            results = results.concat(getAllImagesRecursively(fullPath));
+        } else {
+            // 只匹配常见图片后缀
+            if (/\.(png|PNG|jpg|JPG|jpeg|JPEG)$/i.test(entry.name)) {
+                results.push(fullPath);
+            }
+        }
+    }
+    return results;
+}
+
 function regHandle() {
     // 打开选择对话框 音频
     ipcMain.handle('open-dialog', async (e: any, data) => {
@@ -63,7 +80,7 @@ function regHandle() {
                     title: '选择保存目录',
                     properties: ['openFile', 'openDirectory', 'multiSelections'],
                     filters: [
-                        { name: 'Audio files', extensions: ['mp3', 'wma'] },
+                        { name: 'Audio files', extensions: ['mp3', 'wav'] },
                         { name: 'All files', extensions: ['*'] },
                     ],
                 });
@@ -73,7 +90,7 @@ function regHandle() {
                 // If a directory is selected, retrieve all .mp3 and .wma files in the directory
                 if (result.filePaths.length === 1 && fs.statSync(result.filePaths[0]).isDirectory()) {
                     filePaths = fs.readdirSync(result.filePaths[0]).filter((file: any) => {
-                        return file.endsWith('.mp3') || file.endsWith('.wma');
+                        return file.endsWith('.mp3') || file.endsWith('.wav');
                     });
     
                     filePaths = filePaths.map((file) => path.join(result.filePaths[0], file));
@@ -90,20 +107,16 @@ function regHandle() {
                     title: '选择保存目录',
                     properties: ['openFile', 'openDirectory', 'multiSelections'],
                     filters: [
-                        { name: 'Audio files', extensions: ['png', 'PNG', 'jpg','JPG', 'jpeg', 'JPEG'] },
+                        { name: 'Image files', extensions: ['png', 'PNG', 'jpg','JPG', 'jpeg', 'JPEG'] },
                         { name: 'All files', extensions: ['*'] },
                     ],
                 });
     
                 let filePaths = result.filePaths;
     
-                // If a directory is selected, retrieve all .mp3 and .wma files in the directory
+                // 2. 如果只选中1个且它是文件夹，则递归获取它下面所有子文件夹的图片
                 if (result.filePaths.length === 1 && fs.statSync(result.filePaths[0]).isDirectory()) {
-                    filePaths = fs.readdirSync(result.filePaths[0]).filter((file: any) => {
-                        return file.endsWith('.png') || file.endsWith('.PNG') || file.endsWith('.jpg') || file.endsWith('.JPG') ||  file.endsWith('.jpeg') || file.endsWith('.JPEG');
-                    });
-    
-                    filePaths = filePaths.map((file) => path.join(result.filePaths[0], file));
+                    filePaths = getAllImagesRecursively(result.filePaths[0]);
                 }
     
                 return filePaths;
@@ -114,6 +127,20 @@ function regHandle() {
         }
        
     });
+
+    ipcMain.handle('open-directory-dialog', async () => {
+        return dialog.showOpenDialog({
+            properties: ['openDirectory']
+        });
+    });
+
+    ipcMain.handle('open-file-dialog', async () => {
+        return dialog.showOpenDialog({
+            properties: ['openFile'],
+            filters: [{ name: 'Excel Files', extensions: ['xlsx', 'xls'] }]
+        });
+    });
+
     isDialogHandlerRegistered = true;
 }
 

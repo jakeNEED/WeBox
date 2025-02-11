@@ -142,45 +142,102 @@ export default function App(): JSX.Element {
 
     const processFilesSequentially = async (files: string[], index: number): Promise<void> => {
         if (index >= files.length) {
-            // All files processed, perform additional actions if needed
-            console.log('All files processed');
-            openAlert('音频压缩', `所有音频都已压缩完成，请检查文件。\n\n 原文件大小${filesSizeSum}kb,现在文件大小${curFilesSizeSum}kb\n 共节省了${100 - Math.ceil((curFilesSizeSum / filesSizeSum) * 100)}%空间`);
-            setTimeout(() => {
-                endStartReduceState();
-            }, 10);
-            return;
+          // 全部处理完毕
+          console.log('All files processed');
+          openAlert(
+            '音频压缩',
+            `所有音频都已压缩完成，请检查文件。\n\n 原文件大小${filesSizeSum}kb,现在文件大小${curFilesSizeSum}kb\n 共节省了${100 - Math.ceil((curFilesSizeSum / filesSizeSum) * 100)}%空间`
+          );
+          setTimeout(() => {
+            endStartReduceState();
+          }, 10);
+          return;
         }
-
+      
         const file = files[index];
         console.log('Selected File:', Math.floor(Utiles.fileSize(file) / 1024) + 'kb');
-
-        // Process the file and replace
-        const tmpOutputFile = file.indexOf('.mp3') === -1 ? file.replace(/(.*)\.wma$/, '$1temp.wma') : file.replace(/(.*)\.mp3$/, '$1temp.mp3');
-        try {
-            await ShellUtil.shell(Utiles.getFfmpeg(), '-i', file, `-codec:a libmp3lame -b:a ${reduceRate}k`, tmpOutputFile);
-
-            curFilesSizeSum += Math.floor(Utiles.fileSize(tmpOutputFile) / 1024);
-            // Replace the file
-            await Utiles.replaceFile(tmpOutputFile, file);
-            // 单个音频进度条
-            setselectedFilesProgress((prevProgress: any) => {
-                const newProgressValues = [...prevProgress];
-                newProgressValues[index] = 100;
-                return newProgressValues;
-            });
-            // 总进度条
-            const totalProgress = Math.ceil(((index + 1) / files.length) * 100);
-            setProgress(totalProgress);
-
-            await processFilesSequentially(files, index + 1);
-        } catch (error) {
-            // Handle errors during the conversion or file replacement
-            console.error('Error:', error);
-            setTitle('文件错误');
-            setContent('处理文件时出错' + error);
-            setOpen(true);
+      
+        // 识别后缀
+        const lowerFile = file.toLowerCase();
+        const isMp3 = lowerFile.endsWith('.mp3');
+        const isWav = lowerFile.endsWith('.wav');
+        
+        // 生成临时输出文件名
+        let tmpOutputFile = '';
+        if (isMp3) {
+          // 原文件是 mp3，就生成临时 mp3
+          tmpOutputFile = file.replace(/\.mp3$/i, '') + 'temp.mp3';
+        } else if (isWav) {
+          // 原文件是 wav，就生成临时 wav
+          tmpOutputFile = file.replace(/\.wav$/i, '') + 'temp.wav';
+        } else {
+          // 如果还有别的格式，建议你额外处理
+          // 这里简单抛个错误或忽略
+          console.error('Unrecognized file format:', file);
+          await processFilesSequentially(files, index + 1);
+          return;
         }
-    };
+      
+        try {
+          // 根据不同后缀，执行不同的 FFmpeg 命令
+          if (isMp3) {
+            // 1) MP3 压缩
+            await ShellUtil.shell(
+              Utiles.getFfmpeg(),
+              '-i', file,
+              '-codec:a', 'libmp3lame',
+              '-b:a', `${reduceRate}k`,     // 这里用你的 reduceRate
+              tmpOutputFile
+            );
+          } else if (isWav) {
+            // 2) WAV 压缩示例
+            // ========== 示例 A: 使用 ADPCM 压缩成有损 WAV（体积更小，但要看兼容性）==========
+            await ShellUtil.shell(
+              Utiles.getFfmpeg(),
+              '-i', file,
+              '-c:a', 'adpcm_ima_wav',  // or adpcm_ms
+              '-ar', '44100',           // 采样率，可自行调低
+              '-ac', '2',               // 声道，可自行改成单声道 '1'
+              tmpOutputFile
+            );
+            
+            // ========== 或者, 示例 B: 仅重新采样, 依旧是无损 PCM_s16le, 文件大小不会小多少 ==========
+            // await ShellUtil.shell(
+            //   Utiles.getFfmpeg(),
+            //   '-i', file,
+            //   '-c:a', 'pcm_s16le',
+            //   '-ar', '44100',   // 采样率
+            //   '-ac', '2',       // 声道
+            //   tmpOutputFile
+            // );
+          }
+      
+          // 统计文件大小
+          curFilesSizeSum += Math.floor(Utiles.fileSize(tmpOutputFile) / 1024);
+      
+          // 替换原文件
+          await Utiles.replaceFile(tmpOutputFile, file);
+      
+          // 更新进度条
+          setselectedFilesProgress((prevProgress: any) => {
+            const newProgressValues = [...prevProgress];
+            newProgressValues[index] = 100;
+            return newProgressValues;
+          });
+      
+          // 更新总进度
+          const totalProgress = Math.ceil(((index + 1) / files.length) * 100);
+          setProgress(totalProgress);
+      
+          await processFilesSequentially(files, index + 1);
+        } catch (error) {
+          // 出错处理
+          console.error('Error:', error);
+          setTitle('文件错误');
+          setContent('处理文件时出错' + error);
+          setOpen(true);
+        }
+      };
 
     const handleClose = () => {
         setOpen(false);

@@ -1,5 +1,5 @@
 const { shell, clipboard, BrowserWindow, ipcRenderer } = window.require('electron');
-import { app } from 'electron';
+import { app, dialog } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 export default class Utiles {
@@ -63,5 +63,23 @@ export default class Utiles {
         const appPath = app.getAppPath();
         const ffmpegPath = path.join(appPath, 'path', 'to', 'ffmpeg');
         return ffmpegPath;
+    }
+    public static async openDirectory(): Promise<any> {
+        return ipcRenderer.invoke('open-directory-dialog');
+    }
+
+    public static async openFile(): Promise<any> {
+        return ipcRenderer.invoke('open-file-dialog');
+    }
+    // 选择文件 showOpenDialog
+    public static pathJoin(a: string, b: string): string {
+        return path.join(a, b);
+    }
+
+    public static readFileSync(inputFile: any): any {
+      return fs.readFileSync(inputFile);
+    }
+    public static writeFileSync(outputPath: any, jsonStr: any, md: any): any {
+      return fs.writeFileSync(outputPath, jsonStr, md);
     }
 }

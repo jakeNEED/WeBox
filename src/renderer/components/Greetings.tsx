@@ -12,6 +12,9 @@ import GraphicEqIcon from '@mui/icons-material/GraphicEq';
 import PhotoSizeSelectActualIcon from '@mui/icons-material/PhotoSizeSelectActual';
 import MissedVideoCallIcon from '@mui/icons-material/MissedVideoCall';
 import ImageManager from './ImageManager/ImageManager';
+import SettingsIcon from '@mui/icons-material/Settings';
+import H5Config from './H5Config/H5Config';
+import Loader from '../Loader';
 interface TabPanelProps {
   children?: React.ReactNode;
   dir?: string;
@@ -78,7 +81,7 @@ export default function FullWidthTabs() {
           >
             <Tab icon={<GraphicEqIcon />} label="音频" {...a11yProps(0)} />
             <Tab icon={<PhotoSizeSelectActualIcon />} label="图片" {...a11yProps(1)} />
-            <Tab icon={<MissedVideoCallIcon />} label="视频" {...a11yProps(2)} />
+            <Tab icon={<SettingsIcon />} label="H5配置转换" {...a11yProps(2)} />
           </Tabs>
         </AppBar>
         <SwipeableViews
@@ -94,7 +97,7 @@ export default function FullWidthTabs() {
             <ImageManager />
           </TabPanel>
           <TabPanel value={value} index={2} dir={theme.direction}>
-            未开发，等待中
+            <H5Config />
           </TabPanel>
         </SwipeableViews>
       </Box>
