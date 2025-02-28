@@ -33,6 +33,7 @@
     "react-swipeable-views": "^0.14.0",
     "react-window": "^1.8.10",
     "sharp": "^0.33.1",
+    "tinify": "^1.8.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
