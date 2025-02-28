@@ -82,4 +82,8 @@ export default class Utiles {
     public static writeFileSync(outputPath: any, jsonStr: any, md: any): any {
       return fs.writeFileSync(outputPath, jsonStr, md);
     }
+
+    public static writeFileSyncBuffer(outputPath: any, jsonStr: any): any {
+      return fs.writeFileSync(outputPath, jsonStr);
+    }
 }

@@ -70,6 +70,177 @@ function CircularProgressWithLabel(props: CircularProgressProps & { value: numbe
     );
 }
 
+// TinyPNG API keys，免费压缩次数为5000次
+const TINYPNG_API_KEYS = [
+    'c2PJ9FTwxNQhpvqPgNcNnJ8Xt0wPvfr0',   // key1
+    'JB6xd1KMmfLlNWS1s98wGFsH4K9hMGWZ',   // key2
+    'b0lYhNNR3L7763YqSkyDVK9RXvscyRwL',   // key2
+    '2Wr6ppH1CL5fXt953N2D9hV7TmkCVk19',   // key2
+    'h6fd7ZGHT2HXVC20MH9gFG3cGmvsfZ4x',   // key2
+    'J2k8c2kRzzZ5wbNKQ9mv9RD1TvS2gVjf',   // key2
+    'VMssgPBsznFpB6Yg9fVR1yTgTkCtKQd0',   // key2
+    'qVPTGL9c4TfqhyZfDxj8dYHmRH4MBxxh',   // key2
+    'bKVhxL4lklnfRbv2CYJbtfKsFfFS9stX',   // key2
+    'Qft6z8SjbMGJsgFvFrsYtjdY2PgbXFy3',   // key2
+];
+
+let currentKeyIndex = 0;
+const KEY_USAGE_KEY = 'tinypng_key_usage';
+
+interface KeyUsage {
+    keyIndex: number;
+    usageCount: number;
+    lastResetMonth: number;
+}
+
+// 获取和更新key使用情况
+function getKeyUsage(): KeyUsage {
+    const usage = localStorage.getItem(KEY_USAGE_KEY);
+    if (usage) {
+        return JSON.parse(usage);
+    }
+    return { keyIndex: 0, usageCount: 0, lastResetMonth: new Date().getMonth() };
+}
+
+function updateKeyUsage(usage: KeyUsage) {
+    localStorage.setItem(KEY_USAGE_KEY, JSON.stringify(usage));
+}
+
+// 获取下一个可用的API key
+async function getNextApiKey(): Promise<string | null> {
+    let usage = getKeyUsage();
+    const currentMonth = new Date().getMonth();
+
+    // 检查是否需要重置计数器（新月份）
+    if (currentMonth !== usage.lastResetMonth) {
+        usage = { keyIndex: 0, usageCount: 0, lastResetMonth: currentMonth };
+    }
+
+    // 尝试所有key
+    for (let i = 0; i < TINYPNG_API_KEYS.length; i++) {
+        const keyIndex = (usage.keyIndex + i) % TINYPNG_API_KEYS.length;
+        if (keyIndex === usage.keyIndex && usage.usageCount >= 500) {
+            continue; // 当前key已用完
+        }
+        
+        usage.keyIndex = keyIndex;
+        if (keyIndex === usage.keyIndex) {
+            usage.usageCount++;
+        } else {
+            usage.usageCount = 1;
+        }
+        
+        updateKeyUsage(usage);
+        return TINYPNG_API_KEYS[keyIndex];
+    }
+
+    return null; // 所有key都已用完
+}
+
+// 使用TinyPNG压缩图片
+async function compressImage(inputFile: string, outputFile: string, retryCount = 0): Promise<void> {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 1000; // 1秒延迟
+
+    try {
+        const apiKey = await getNextApiKey();
+        if (!apiKey) {
+            throw new Error('所有API key的本月免费压缩次数已用完！');
+        }
+
+        const https = window.require('https');
+
+        return new Promise((resolve, reject) => {
+            try {
+                const inputBuffer = Utiles.readFileSync(inputFile);
+                
+                const options = {
+                    hostname: 'api.tinify.com',
+                    path: '/shrink',
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    timeout: 10000 // 10秒超时
+                };
+
+                const req = https.request(options, (res: any) => {
+                    let data = '';
+                    
+                    res.on('data', (chunk: any) => {
+                        data += chunk;
+                    });
+
+                    res.on('end', () => {
+                        if (res.statusCode === 201) {
+                            const response = JSON.parse(data);
+                            
+                            // 下载压缩后的图片
+                            https.get(response.output.url, (res: any) => {
+                                const chunks: any[] = [];
+                                
+                                res.on('data', (chunk: any) => {
+                                    chunks.push(chunk);
+                                });
+
+                                res.on('end', () => {
+                                    const compressedBuffer = Buffer.concat(chunks);
+                                    Utiles.writeFileSyncBuffer(outputFile, compressedBuffer);
+                                    console.log(`Image compressed successfully: ${outputFile}`);
+                                    resolve();
+                                });
+                            }).on('error', reject);
+                        } else {
+                            const error = JSON.parse(data);
+                            if (error.error === 'Too many requests') {
+                                // 当前key已达到限制，尝试下一个key
+                                compressImage(inputFile, outputFile, retryCount + 1)
+                                    .then(resolve)
+                                    .catch(reject);
+                            } else {
+                                reject(new Error(`TinyPNG API error: ${error.message}`));
+                            }
+                        }
+                    });
+                });
+
+                req.on('error', (error: any) => {
+                    if (retryCount < MAX_RETRIES) {
+                        setTimeout(() => {
+                            compressImage(inputFile, outputFile, retryCount + 1)
+                                .then(resolve)
+                                .catch(reject);
+                        }, RETRY_DELAY);
+                    } else {
+                        reject(error);
+                    }
+                });
+
+                req.write(inputBuffer);
+                req.end();
+
+            } catch (error) {
+                reject(error);
+            }
+        });
+    } catch (error) {
+        if (retryCount < MAX_RETRIES) {
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+            return compressImage(inputFile, outputFile, retryCount + 1);
+        }
+        throw error;
+    }
+}
+
+// 添加文件大小格式化函数
+function formatFileSize(sizeInKB: number): string {
+    if (sizeInKB >= 1024) {
+        return `${(sizeInKB / 1024).toFixed(2)}MB`;
+    }
+    return `${sizeInKB}KB`;
+}
+
 export default function App(): JSX.Element {
     let fileSum = 0;
     let filesSizeSum = 0;
@@ -145,9 +316,14 @@ export default function App(): JSX.Element {
 
     const processFilesSequentially = async (files: string[], index: number): Promise<void> => {
         if (index >= files.length) {
-            // All files processed, perform additional actions if needed
             console.log('All files processed');
-            openAlert('图片压缩', `所有图片都已压缩完成，请检查文件。\n\n 原文件大小${filesSizeSum}kb,现在文件大小${curFilesSizeSum}kb\n 共节省了${100 - Math.ceil((curFilesSizeSum / filesSizeSum) * 100)}%空间`);
+            openAlert(
+                '图片压缩',
+                `所有图片都已压缩完成，请检查文件。\n\n` + 
+                `原文件大小${formatFileSize(filesSizeSum)},` +
+                `现在文件大小${formatFileSize(curFilesSizeSum)}\n` +
+                `共节省了${100 - Math.ceil((curFilesSizeSum / filesSizeSum) * 100)}%空间`
+            );
             setTimeout(() => {
                 endStartReduceState();
             }, 10);
@@ -157,48 +333,35 @@ export default function App(): JSX.Element {
         const file = files[index];
         console.log('Selected File:', Math.floor(Utiles.fileSize(file) / 1024) + 'kb');
 
-        // Process the file and replace
-        // const tmpOutputFile = file.indexOf('.png') === -1 || file.indexOf('.PNG') === -1 ? file.replace(/(.*)\.wma$/, '$1temp.jpg') : file.replace(/(.*)\.mp3$/, '$1temp.png');
         const tmpOutputFile: string = file.replace(/\.(jpg|jpeg|png|JPG|JPEG|PNG)$/i, '_temp$&');
 
         try {
-            const quality = reduceRate; // reduceRate / 10;
-            // await ShellUtil.shell(Utiles.getFfmpeg(), '-i', file, `-qscale:v ${rate}`, tmpOutputFile);
-            await compressImage(file, tmpOutputFile, quality);
+            await compressImage(file, tmpOutputFile);
 
-            // 处理错误或完成后的回调函数
             curFilesSizeSum += Math.floor(Utiles.fileSize(tmpOutputFile) / 1024);
-            // Replace the file
             await Utiles.replaceFile(tmpOutputFile, file);
-            // 单个图片进度条
+
             setselectedFilesProgress((prevProgress: any) => {
                 const newProgressValues = [...prevProgress];
                 newProgressValues[index] = 100;
                 return newProgressValues;
             });
-            // 总进度条
+            
             const totalProgress = Math.ceil(((index + 1) / files.length) * 100);
             setProgress(totalProgress);
 
             await processFilesSequentially(files, index + 1);
-        } catch (error) {
-            // Handle errors during the conversion or file replacement
+        } catch (error: any) {
+            if (error.message.includes('免费压缩次数已用完')) {
+                openAlert('API限制', error.message);
+                endStartReduceState();
+                return;
+            }
             console.error('Error:', error);
-            setTitle('文件错误');
-            setContent('处理文件时出错' + error);
-            setOpen(true);
+            openAlert('文件错误', `处理文件时出错: ${error.message}`);
+            endStartReduceState();
         }
     };
-
-    async function compressImage(inputFile: string, outputFile: string, quality: number) {
-        try {
-            await sharp(inputFile).jpeg({ quality: quality }).toFile(outputFile);
-            console.log('Image compressed successfully!');
-        } catch (error) {
-            console.error('Error compressing image:', error);
-            throw error; // You can choose to handle or rethrow the error as needed
-        }
-    }
 
     const handleClose = () => {
         setOpen(false);
