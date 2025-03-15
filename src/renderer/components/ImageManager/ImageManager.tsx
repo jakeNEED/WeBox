@@ -25,6 +25,7 @@ import ShellUtil from '../../../lib/ShellUtil';
 import CircularProgress, { CircularProgressProps } from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
 import path from 'path';
+import CompressIcon from '@mui/icons-material/Compress';
 
 import FileUploader from '../FileUploader';
 // import sharp from 'sharp';
@@ -73,8 +74,8 @@ function CircularProgressWithLabel(props: CircularProgressProps & { value: numbe
 
 // TinyPNG API keys，免费压缩次数为5000次
 const TINYPNG_API_KEYS = [
-    'JB6xd1KMmfLlNWS1s98wGFsH4K9hMGWZ',   // key2
     'c2PJ9FTwxNQhpvqPgNcNnJ8Xt0wPvfr0',   // key1
+    'JB6xd1KMmfLlNWS1s98wGFsH4K9hMGWZ',   // key2
     'b0lYhNNR3L7763YqSkyDVK9RXvscyRwL',   // key2
     '2Wr6ppH1CL5fXt953N2D9hV7TmkCVk19',   // key2
     'h6fd7ZGHT2HXVC20MH9gFG3cGmvsfZ4x',   // key2
@@ -311,7 +312,154 @@ interface FileProgress {
     progress: number;
     status: 'pending' | 'success' | 'fail';
     error?: string;
+    originalSize?: number;  // 原始大小 (KB)
+    compressedSize?: number;  // 压缩后大小 (KB)
 }
+
+// 添加旋转进度条组件
+const CircularBorderProgress = () => {
+    return (
+        <Box sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            pointerEvents: 'none',
+            zIndex: 10,
+        }}>
+            {/* 顶部边框 */}
+            <Box sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '2px',
+                overflow: 'hidden',
+            }}>
+                <Box sx={{
+                    position: 'absolute',
+                    width: '30%',
+                    height: '100%',
+                    background: 'linear-gradient(90deg, rgba(194, 48, 153, 0) 0%, rgba(194, 48, 153, 1) 50%, rgba(194, 48, 153, 0) 100%)',
+                    animation: 'moveRightToLeft 1.2s infinite ease-in-out',
+                    boxShadow: '0 0 8px rgba(194, 48, 153, 0.8)',
+                    '@keyframes moveRightToLeft': {
+                        '0%': { left: '-30%' },
+                        '100%': { left: '100%' }
+                    }
+                }} />
+            </Box>
+
+            {/* 右侧边框 */}
+            <Box sx={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: '2px',
+                height: '100%',
+                overflow: 'hidden',
+            }}>
+                <Box sx={{
+                    position: 'absolute',
+                    width: '100%',
+                    height: '30%',
+                    background: 'linear-gradient(180deg, rgba(194, 48, 153, 0) 0%, rgba(194, 48, 153, 1) 50%, rgba(194, 48, 153, 0) 100%)',
+                    animation: 'moveTopToBottom 1.2s infinite ease-in-out',
+                    boxShadow: '0 0 8px rgba(194, 48, 153, 0.8)',
+                    animationDelay: '0.3s',
+                    '@keyframes moveTopToBottom': {
+                        '0%': { top: '-30%' },
+                        '100%': { top: '100%' }
+                    }
+                }} />
+            </Box>
+
+            {/* 底部边框 */}
+            <Box sx={{
+                position: 'absolute',
+                bottom: 0,
+                right: 0,
+                width: '100%',
+                height: '2px',
+                overflow: 'hidden',
+            }}>
+                <Box sx={{
+                    position: 'absolute',
+                    width: '30%',
+                    height: '100%',
+                    background: 'linear-gradient(90deg, rgba(194, 48, 153, 0) 0%, rgba(194, 48, 153, 1) 50%, rgba(194, 48, 153, 0) 100%)',
+                    animation: 'moveLeftToRight 1.2s infinite ease-in-out',
+                    boxShadow: '0 0 8px rgba(194, 48, 153, 0.8)',
+                    animationDelay: '0.6s',
+                    '@keyframes moveLeftToRight': {
+                        '0%': { right: '-30%' },
+                        '100%': { right: '100%' }
+                    }
+                }} />
+            </Box>
+
+            {/* 左侧边框 */}
+            <Box sx={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                width: '2px',
+                height: '100%',
+                overflow: 'hidden',
+            }}>
+                <Box sx={{
+                    position: 'absolute',
+                    width: '100%',
+                    height: '30%',
+                    background: 'linear-gradient(180deg, rgba(194, 48, 153, 0) 0%, rgba(194, 48, 153, 1) 50%, rgba(194, 48, 153, 0) 100%)',
+                    animation: 'moveBottomToTop 1.2s infinite ease-in-out',
+                    boxShadow: '0 0 8px rgba(194, 48, 153, 0.8)',
+                    animationDelay: '0.9s',
+                    '@keyframes moveBottomToTop': {
+                        '0%': { bottom: '-30%' },
+                        '100%': { bottom: '100%' }
+                    }
+                }} />
+            </Box>
+        </Box>
+    );
+};
+
+// 添加闪光按钮组件
+const GlowingButton = styled(Button)(({ theme }) => ({
+  position: 'relative',
+  overflow: 'hidden',
+  backgroundColor: '#42b983',
+  borderRadius: '8px',
+  padding: '10px 30px',
+  transition: 'all 0.3s ease',
+  boxShadow: '0 0 15px rgba(66, 185, 131, 0.5)',
+  '&:hover': {
+    backgroundColor: '#3da876',
+    transform: 'translateY(-2px)',
+    boxShadow: '0 0 20px rgba(66, 185, 131, 0.7)',
+  },
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: '-50%',
+    left: '-50%',
+    width: '200%',
+    height: '200%',
+    background: 'linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%)',
+    transform: 'rotate(30deg)',
+    animation: 'glowingEffect 3s infinite',
+  },
+  '@keyframes glowingEffect': {
+    '0%': {
+      transform: 'rotate(30deg) translateX(-300%)',
+    },
+    '100%': {
+      transform: 'rotate(30deg) translateX(300%)',
+    },
+  },
+}));
 
 export default function App(): JSX.Element {
     let fileSum = 0;
@@ -347,14 +495,14 @@ export default function App(): JSX.Element {
             } else {
                 // 选择音频文件
                 const progress: Array<number> = [];
-                for (let i = 0; i < files.length; i++) {
+                    for (let i = 0; i < files.length; i++) {
                     progress.push(0);
-                }
+                    }
                 fileSum = progress.length;
                 setselectedFilesProgress(progress.map(p => ({ progress: p, status: 'pending' })));
 
-                setSelectedFiles(files);
-                setselectFilePath(files[0].slice(0, 30));
+                    setSelectedFiles(files);
+                    setselectFilePath(files[0].slice(0, 30));
             }
         });
     };
@@ -418,35 +566,57 @@ export default function App(): JSX.Element {
             const file = files[currentIndex];
             const tmpOutputFile = file.replace(/\.(jpg|jpeg|png|JPG|JPEG|PNG)$/i, '_temp$&');
 
+            // 获取原始文件大小
+            const originalSize = Math.floor(Utiles.fileSize(file) / 1024);
+            
+            // 更新文件大小信息
+            setselectedFilesProgress((prevProgress) => {
+                const newProgress = [...prevProgress];
+                newProgress[currentIndex] = { 
+                    ...newProgress[currentIndex],
+                    progress: 0, 
+                    originalSize 
+                };
+                return newProgress;
+            });
+
             const task = (async () => {
                 try {
                     await compressImage(file, tmpOutputFile);
                     updateKeyUsageDisplay();
                     
-                    curFilesSizeSum += Math.floor(Utiles.fileSize(tmpOutputFile) / 1024);
-                    await Utiles.replaceFile(tmpOutputFile, file);
+                    // 获取压缩后文件大小
+                    const compressedSize = Math.floor(Utiles.fileSize(tmpOutputFile) / 1024);
+                    curFilesSizeSum += compressedSize;
+            await Utiles.replaceFile(tmpOutputFile, file);
 
                     setselectedFilesProgress((prevProgress) => {
                         const newProgress = [...prevProgress];
-                        newProgress[currentIndex] = { progress: 100, status: 'success' };
+                        newProgress[currentIndex] = { 
+                            progress: 100, 
+                            status: 'success',
+                            originalSize,
+                            compressedSize
+                        };
                         return newProgress;
                     });
 
                     setCompletedCount(prev => {
                         const newCount = prev + 1;
                         const totalProgress = Math.ceil((newCount / files.length) * 100);
-                        setProgress(totalProgress);
+            setProgress(totalProgress);
                         return newCount;
                     });
 
                 } catch (error: any) {
-                    console.error('Error:', error);
+            console.error('Error:', error);
                     setselectedFilesProgress((prevProgress) => {
                         const newProgress = [...prevProgress];
                         newProgress[currentIndex] = { 
                             progress: 100, 
                             status: 'fail',
-                            error: error.message 
+                            error: error.message,
+                            originalSize
                         };
                         return newProgress;
                     });
@@ -480,43 +650,148 @@ export default function App(): JSX.Element {
     // 需要压缩的资源
     function renderRow(props: ListChildComponentProps) {
         const { index, style } = props;
-        const fileProgress = selectedFilesProgress?.[index] || { progress: 0, status: 'pending' };
+        const fileProgress = selectedFilesProgress?.[index] || { 
+            progress: 0, 
+            status: 'pending',
+            originalSize: 0,
+            compressedSize: 0
+        };
+        
+        // 格式化文件大小
+        const formatSize = (size?: number) => {
+            if (size === undefined || size === null) return '0KB';
+            return size >= 1024 ? `${(size / 1024).toFixed(1)}MB` : `${size}KB`;
+        };
+        
+        // 计算压缩比例
+        const getCompressionRate = () => {
+            if (!fileProgress.originalSize || !fileProgress.compressedSize || fileProgress.status !== 'success') {
+                return '0%';
+            }
+            const rate = Math.round((fileProgress.compressedSize - fileProgress.originalSize) / fileProgress.originalSize * 100);
+            return `${rate}%`;
+        };
+        
+        // 获取文件名
+        const getFileName = (filePath: string) => {
+            return path.basename(filePath);
+        };
+
+        // 获取行背景色
+        const getRowBackground = (index: number, status: string) => {
+            // 基础颜色
+            const baseColor = index % 2 === 0 ? 
+                'linear-gradient(90deg, rgba(32, 34, 45, 0.7) 0%, rgba(26, 29, 36, 0.7) 100%)' : 
+                'linear-gradient(90deg, rgba(26, 29, 36, 0.7) 0%, rgba(22, 25, 31, 0.7) 100%)';
+            
+            // 根据状态添加额外的颜色
+            if (status === 'success') {
+                return `${baseColor}, linear-gradient(90deg, rgba(66, 185, 131, 0.05) 0%, rgba(66, 185, 131, 0.1) 100%)`;
+            } else if (status === 'fail') {
+                return `${baseColor}, linear-gradient(90deg, rgba(255, 77, 79, 0.05) 0%, rgba(255, 77, 79, 0.1) 100%)`;
+            }
+            
+            return baseColor;
+        };
 
         return (
-            <ListItem style={style} key={index} component="div" disablePadding>
-                <ListItemButton>
-                    <ListItemText 
-                        style={{fontSize: '12px', color: '#C23099', textAlign: 'left'}} 
-                        primary={`${index + 1}.`}
-                    />
-                    <ListItemText 
+            <ListItem 
                         style={{
-                            fontSize: '12px', 
-                            color: '#C23099', 
-                            textAlign: 'left',
-                            position: "relative", 
-                            left: "-45px"
-                        }} 
-                        primary={`..........${selectedFiles ? selectedFiles[index].slice(selectedFiles[index].length -15 > 0 ? selectedFiles[index].length -15 : 0, selectedFiles[index].length) : ''}`} 
+                    ...style,
+                    margin: '2px 0',
+                    transition: 'all 0.2s ease',
+                    borderLeft: fileProgress.status === 'success' ? '3px solid #42b983' : 
+                               fileProgress.status === 'fail' ? '3px solid #ff4d4f' : 
+                               '3px solid transparent',
+                }} 
+                sx={{
+                    background: getRowBackground(index, fileProgress.status),
+                    borderRadius: '4px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    '&:hover': {
+                        background: 'linear-gradient(90deg, rgba(64, 38, 73, 0.2) 0%, rgba(64, 38, 73, 0.3) 100%)',
+                        boxShadow: '0 2px 5px rgba(0,0,0,0.15)',
+                    }
+                }}
+                key={index} 
+                component="div" 
+                disablePadding
+            >
+                <ListItemButton sx={{ padding: '4px 8px' }}>
+                    <Grid container alignItems="center" spacing={1}>
+                        {/* 序号 */}
+                        <Grid item xs={0.5}>
+                            <Typography sx={{ fontSize: '12px', color: '#C18BC9' }}>
+                                {index + 1}.
+                            </Typography>
+                        </Grid>
+                        
+                        {/* 文件名 */}
+                        <Grid item xs={4.5}>
+                            <Typography 
+                                noWrap 
+                                sx={{ 
+                            fontSize: '12px',
+                            color: '#C23099',
+                                    textOverflow: 'ellipsis'
+                                }}
+                            >
+                                {selectedFiles ? getFileName(selectedFiles[index]) : ''}
+                            </Typography>
+                        </Grid>
+                        
+                        {/* 原始大小 */}
+                        <Grid item xs={1.5}>
+                            <Typography sx={{ fontSize: '12px', color: '#8b8b8b' }}>
+                                {formatSize(fileProgress.originalSize)}
+                            </Typography>
+                        </Grid>
+                        
+                        {/* 进度条 */}
+                        <Grid item xs={2.5}>
+                    <LinearProgress
+                        variant="determinate"
+                                value={fileProgress.progress}
+                        sx={{
+                                    width: '100%',
+                            height: 4,
+                            borderRadius: 2,
+                                    bgcolor: 'rgba(64, 38, 73, 0.3)',
+                            '& .MuiLinearProgress-bar': {
+                                        bgcolor: fileProgress.status === 'fail' ? '#ff4d4f' : 
+                                               fileProgress.status === 'success' ? '#42b983' : '#C23099',
+                                        boxShadow: fileProgress.status === 'success' ? '0 0 5px rgba(66, 185, 131, 0.5)' : 
+                                                  fileProgress.status === 'fail' ? '0 0 5px rgba(255, 77, 79, 0.5)' : 
+                                                  '0 0 5px rgba(194, 48, 153, 0.5)',
+                            },
+                        }}
                     />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <LinearProgress
-                            variant="determinate"
-                            value={fileProgress.progress}
-                            sx={{
-                                width: '80px',
-                                height: 4,
-                                borderRadius: 2,
-                                bgcolor: '#402649',
-                                '& .MuiLinearProgress-bar': {
-                                    bgcolor: fileProgress.status === 'fail' ? '#ff4d4f' : '#C23099',
-                                },
-                            }}
-                        />
-                        {fileProgress.status === 'fail' && (
-                            <span style={{ color: '#ff4d4f', fontSize: '12px' }}>FAIL</span>
-                        )}
-                    </div>
+                        </Grid>
+                        
+                        {/* 压缩后大小 */}
+                        <Grid item xs={1.5}>
+                            <Typography sx={{ 
+                                fontSize: '12px', 
+                                color: fileProgress.status === 'success' ? '#42b983' : '#8b8b8b',
+                                fontWeight: fileProgress.status === 'success' ? 'bold' : 'normal'
+                            }}>
+                                {fileProgress.status === 'success' ? formatSize(fileProgress.compressedSize) : '0KB'}
+                            </Typography>
+                        </Grid>
+                        
+                        {/* 压缩比例 */}
+                        <Grid item xs={1.5}>
+                            <Typography sx={{ 
+                                fontSize: '12px', 
+                                color: fileProgress.status === 'success' ? '#42b983' : 
+                                      fileProgress.status === 'fail' ? '#ff4d4f' : '#8b8b8b',
+                                fontWeight: 'bold'
+                            }}>
+                                {fileProgress.status === 'success' ? getCompressionRate() : 
+                                 fileProgress.status === 'fail' ? 'FAIL' : '0%'}
+                            </Typography>
+                        </Grid>
+                    </Grid>
                 </ListItemButton>
             </ListItem>
         );
@@ -632,11 +907,15 @@ export default function App(): JSX.Element {
 
     return (
         <Container fixed sx={{
-            border: '2px solid #402649',
-            bgcolor: '#14161D',
-            width: '100%',
-            height: '550',
+                border: '2px solid #402649',
+                bgcolor: '#14161D',
+                width: '100%',
+                height: '550',
+            position: 'relative',  // 添加相对定位
         }}>
+            {/* 添加旋转进度条 */}
+            {animation && <CircularBorderProgress />}
+
             {/* API使用情况显示 */}
             <div style={{
                 display: 'flex',
@@ -664,17 +943,17 @@ export default function App(): JSX.Element {
                 display: 'flex',  // 改为flex布局
                 alignItems: 'center',  // 垂直居中对齐
                 gap: '20px',  // 元素之间的间距
-                position: 'relative',
-                height: '100px',
+                    position: 'relative',
+                    height: '100px',
                 top: '0px',
             }}>
                 <FileUploader onFileChange={handleFileChange} />
                 {/* 目录框 */}
                 <Container fixed sx={{
                     // display: 'inline-block',
-                    border: '2px solid #402649',
-                    bgcolor: '#14161D',
-                    width: '400px',
+                        border: '2px solid #402649',
+                        bgcolor: '#14161D',
+                        width: '400px',
                     height: '36px',  // 调整高度以匹配按钮
                     overflow: 'hidden',
                     display: 'flex',  // 使用flex布局
@@ -699,7 +978,7 @@ export default function App(): JSX.Element {
                             flex: 1,  // 占据剩余空间
                         }}
                     > 
-                        {selectFilePath} 
+                        {selectFilePath}
                     </label>
                 </Container>
             </div>
@@ -726,8 +1005,8 @@ export default function App(): JSX.Element {
             </div>
 
             <Box sx={{ width: '100%', position: 'relative', top: 30 }}>
-                {/* <LinearProgress color="secondary" /> */}
-                {animation && <LinearProgress color="secondary" />}
+                {/* 移除原有的进度条 */}
+                {/* {animation && <LinearProgress color="secondary" />} */}
             </Box>
             <Container
                 fixed
@@ -735,7 +1014,7 @@ export default function App(): JSX.Element {
                     width: '100%',
                     height: '350',
                     position: 'relative',
-                    top: 30,
+                    top: 10,
                     padding: 0,
                 }}>
                 <DropZone
@@ -743,34 +1022,50 @@ export default function App(): JSX.Element {
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
-                >
-                    <Grid container justifyContent="center" alignItems="center">
+            >
+                <Grid container justifyContent="center" alignItems="center">
                         {/* 原有的内容 */}
-                        <CustomizedScrollbarBox
-                            sx={{
-                                bgcolor: '#131622',
-                                position: 'relative',
-                                top: '10',
-                                width: '100%',
-                                height: 330,
-                                maxWidth: 600,
-                                overflowY: 'auto',
+                    <CustomizedScrollbarBox
+                        sx={{
+                            bgcolor: '#131622',
+                            position: 'relative',
+                                top: '0',
+                            width: '100%',
+                                height: 320,
+                            maxWidth: 600,
+                            overflowY: 'auto',
                             }}>
                             <FixedSizeList height={330} width={480} itemSize={26} itemCount={selectedFiles ? selectedFiles?.length : 0} overscanCount={5}>
-                                {renderRow}
-                            </FixedSizeList>
-                        </CustomizedScrollbarBox>
+                            {renderRow}
+                        </FixedSizeList>
+                    </CustomizedScrollbarBox>
                         
                         <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
-                            {!showButton && <CircularProgressWithLabel size={80} value={progress} />}
-                        </div>
+                        {!showButton && <CircularProgressWithLabel size={80} value={progress} />}
+                    </div>
 
-                        {showButton && (
-                            <Button style={{ position: 'absolute', top: '175' }} variant="contained" color="success" onClick={handleUploadClick}>
-                                <label style={{ color: '#2F2931', fontWeight: 'bold' }}>开始压缩</label>
-                            </Button>
-                        )}
-                    </Grid>
+                    {showButton && (
+                            <GlowingButton 
+                                style={{ position: 'absolute', top: '175px' }} 
+                            variant="contained"
+                            onClick={handleUploadClick}
+                        >
+                                <Typography sx={{ 
+                                    color: '#14161D', 
+                                    fontWeight: 'bold',
+                                    textShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                                    fontSize: '16px',
+                                    letterSpacing: '1px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}>
+                                    <CompressIcon fontSize="small" />
+                                    开始压缩
+                                </Typography>
+                            </GlowingButton>
+                    )}
+                </Grid>
                 </DropZone>
             </Container>
 
